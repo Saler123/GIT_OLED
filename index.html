@@ -59,6 +59,9 @@
   .wokwi { width: 100%; height: 560px; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 12px; }
   ol { margin: 6px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
   ol code, p code { color: var(--text); }
+  .social { margin-top: 6px; display: flex; justify-content: center; gap: 10px; }
+  .social a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .social a:hover { text-decoration: underline; }
   footer { text-align: center; color: var(--muted); font-size: .85rem; padding: 20px 16px 32px; border-top: 1px solid var(--line); max-width: 1200px; margin: 8px auto 0; }
 </style>
 </head>
@@ -238,7 +241,15 @@ Adafruit SH110X</textarea>
   </section>
 </main>
 
-<footer>Hecho con HTML, CSS y JavaScript · Inspirado en <i>ESP32 OLED Video Converter</i> de Tri Wahyu</footer>
+<footer>
+  <div>Creado por <b style="color:var(--text)">YOTO_IA</b></div>
+  <div class="social">
+    <a href="https://www.instagram.com/sandrd_djg/" target="_blank" rel="noopener">📷 Instagram</a>
+    <span>|</span>
+    <a href="https://www.tiktok.com/@yoto0872" target="_blank" rel="noopener">🎵 TikTok</a>
+  </div>
+  <div style="margin-top:6px">Inspirado en <i>ESP32 OLED Video Converter</i> de Tri Wahyu</div>
+</footer>
 
 <script>
 const W = 128, H = 64, FRAME_BYTES = W * H / 8;
