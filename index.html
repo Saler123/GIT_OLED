@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video a OLED</title>
+<style>
+  :root {
+    --bg: #0f1216; --panel: #181d24; --panel-2: #12161c; --line: #2a313b; --text: #e6e9ee; --muted: #8b95a3;
+    --accent: #3fb6ff; --accent-2: #1f8fd6; --ok: #3ccf7a; --warn: #ffb547;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, Segoe UI, Roboto, sans-serif; }
+  header { padding: 20px 16px 8px; max-width: 1200px; margin: 0 auto; text-align: center; }
+  header h1 { margin: 0; font-size: 1.6rem; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 1.05rem; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .full { grid-column: 1 / -1; }
+  .box { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; margin: 12px 0; background: var(--panel-2); }
+  .box-title { font-size: .78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  video { width: 100%; max-height: 360px; background: #000; border-radius: 8px; display: none; margin-bottom: 12px; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); cursor: pointer; display: block; }
+  .drop.over { border-color: var(--accent); color: var(--text); }
+  .drop input { display: none; }
+  .oled { width: 100%; max-width: 512px; aspect-ratio: 2 / 1; image-rendering: pixelated; background: #000;
+          border: 2px solid var(--accent); border-radius: 6px; display: block; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  @media (max-width: 500px) { .grid { grid-template-columns: 1fr; } }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+  .lbl { display: flex; justify-content: space-between; align-items: center; }
+  .lbl b { color: var(--text); font-weight: 600; }
+  .hint { font-size: .75rem; color: var(--muted); display: flex; justify-content: space-between; }
+  input[type=number], select { background: #0f1318; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; width: 100%; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  button { background: var(--accent-2); color: #fff; border: 0; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover { background: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.sec { background: #2a313b; }
+  button.sec:hover { background: #36404c; }
+  button.wide { width: 100%; }
+  button.reset { background: none; color: var(--muted); padding: 0 4px; font-size: 1rem; line-height: 1; }
+  button.reset:hover { color: var(--accent); background: none; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .row > button { flex: 1; }
+  progress { width: 100%; height: 10px; accent-color: var(--accent); margin-top: 10px; }
+  .status { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 12px; background: var(--panel-2); }
+  .status .msg { color: var(--warn); font-weight: 600; }
+  .status .msg.ok { color: var(--ok); }
+  .info { font-size: .85rem; color: var(--muted); margin-top: 8px; }
+  .info.warn { color: var(--warn); }
+  .info b, .status b { color: var(--accent); }
+  textarea { width: 100%; height: 280px; background: #0b0e12; color: #cfe3ff; border: 1px solid var(--line); border-radius: 8px;
+             font: 12px/1.45 Consolas, monospace; padding: 10px; resize: vertical; white-space: pre; margin-top: 10px; }
+  textarea.small { height: 150px; }
+  .wokwi { width: 100%; height: 560px; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 12px; }
+  ol { margin: 6px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+  ol code, p code { color: var(--text); }
+  footer { text-align: center; color: var(--muted); font-size: .85rem; padding: 20px 16px 32px; border-top: 1px solid var(--line); max-width: 1200px; margin: 8px auto 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ESP32 OLED – Conversor de Video a Animación</h1>
+  <p>Convierte un video a fotogramas de 128×64 en blanco y negro y genera el código Arduino para ESP32 con pantalla SSD1306 o SH1106.</p>
+</header>
+
+<main>
+  <!-- 1. Entrada y ajustes -->
+  <section class="card">
+    <h2>1. Entrada y ajustes</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="video/*">
+      <span id="fileName">Haz clic o arrastra un video aquí (MP4, WebM…)</span>
+    </label>
+    <div class="row"><button id="rotate" class="sec" disabled>↻ Girar video 0°</button></div>
+
+    <label style="margin-top:12px"><span class="lbl">Método de conversión de color</span>
+      <select id="method">
+        <option value="threshold">Umbral sólido (blanco/negro puro)</option>
+        <option value="bayer">Bayer 8×8 (patrón ordenado)</option>
+        <option value="floyd">Floyd-Steinberg (degradado suave)</option>
+        <option value="atkinson" selected>Atkinson (evita manchas negras)</option>
+      </select>
+    </label>
+    <label><span class="lbl">Modo de escala</span>
+      <select id="scale">
+        <option value="fit">Ajustar (proporcional, bordes negros)</option>
+        <option value="fill" selected>Rellenar (llena la pantalla y recorta)</option>
+        <option value="stretch">Estirar (forzar 128×64)</option>
+      </select>
+    </label>
+
+    <div class="box">
+      <div class="box-title">Mover y zoom (encuadre)</div>
+      <label><span class="lbl"><span>Mover X: <b id="panXV">0</b></span><button class="reset" data-for="panX" title="Reiniciar">↺</button></span>
+        <input type="range" id="panX" min="-64" max="64" value="0"></label>
+      <label><span class="lbl"><span>Mover Y: <b id="panYV">0</b></span><button class="reset" data-for="panY" title="Reiniciar">↺</button></span>
+        <input type="range" id="panY" min="-32" max="32" value="0"></label>
+      <label style="margin-bottom:0"><span class="lbl"><span>Zoom: <b id="zoomV">100</b>%</span><button class="reset" data-for="zoom" title="Reiniciar">↺</button></span>
+        <input type="range" id="zoom" min="50" max="400" value="100"></label>
+    </div>
+
+    <label><span class="lbl"><span>FPS objetivo: <b id="fpsV">12</b></span><button class="reset" data-for="fps" title="Reiniciar">↺</button></span>
+      <input type="range" id="fps" min="1" max="30" value="12"></label>
+    <div class="grid">
+      <label><span class="lbl">Inicio (s)</span><input type="number" id="start" value="0" min="0" step="0.1"></label>
+      <label><span class="lbl">Fin (s, vacío = todo)</span><input type="number" id="end" min="0" step="0.1"></label>
+    </div>
+    <label><span class="lbl">Máximo de fotogramas</span><input type="number" id="maxFrames" value="300" min="1" max="3000"></label>
+
+    <div class="box">
+      <div class="box-title">Ajustes de imagen (importante para texto)</div>
+      <label><span class="lbl"><span>Grosor de texto/líneas: <b id="thickV">0</b></span><button class="reset" data-for="thick" title="Reiniciar">↺</button></span>
+        <input type="range" id="thick" min="-3" max="3" step="0.1" value="0">
+        <span class="hint"><span>← Engrosar negro (−)</span><span>Engrosar blanco (+) →</span></span></label>
+      <label><span class="lbl"><span>Sesgo B/N (umbral): <b id="thrV">128</b></span><button class="reset" data-for="thr" title="Reiniciar">↺</button></span>
+        <input type="range" id="thr" min="0" max="255" value="128"></label>
+      <label><span class="lbl"><span>Contraste: <b id="contrastV">100</b>%</span><button class="reset" data-for="contrast" title="Reiniciar">↺</button></span>
+        <input type="range" id="contrast" min="0" max="300" value="100"></label>
+      <label style="margin-bottom:0"><span class="lbl"><span>Brillo: <b id="brightV">0</b>%</span><button class="reset" data-for="bright" title="Reiniciar">↺</button></span>
+        <input type="range" id="bright" min="-100" max="100" value="0"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="invert"> Invertir colores</label>
+
+    <div class="row">
+      <button id="convert" disabled>Extraer fotograma por fotograma</button>
+      <button id="cancel" class="sec" disabled style="flex:0 0 auto">Cancelar</button>
+    </div>
+    <progress id="progress" value="0" max="1"></progress>
+  </section>
+
+  <!-- 2. Vista previa -->
+  <section class="card">
+    <h2>2. Vista previa en vivo (OLED 128×64)</h2>
+    <video id="video" controls muted playsinline></video>
+    <canvas id="preview" class="oled" width="128" height="64"></canvas>
+    <div class="status">
+      <div class="msg" id="statusMsg">Sube un video para empezar.</div>
+      <div class="info">Total de fotogramas extraídos: <b id="frameCount">0</b></div>
+      <div class="info" id="memInfo"></div>
+    </div>
+    <div class="box">
+      <div class="box-title">Resultado animado (lo que verás en el ESP32)</div>
+      <canvas id="outPreview" class="oled" width="128" height="64"></canvas>
+      <div class="row">
+        <button id="play" class="sec" disabled>⏸ Pausar</button>
+        <span class="info" id="frameInfo" style="margin:0"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. VideoFrame.h -->
+  <section class="card full">
+    <h2>3. Arreglo C++ (VideoFrame.h)</h2>
+    <p class="info">En el IDE de Arduino crea una pestaña nueva llamada <b>VideoFrame.h</b> y pega este código (o descarga el archivo y ponlo en la carpeta del sketch).</p>
+    <div class="row">
+      <button id="copyH" disabled>📋 Copiar datos del arreglo</button>
+      <button id="dlH" class="sec" disabled>⬇ Descargar VideoFrame.h</button>
+    </div>
+    <textarea id="codeH" readonly placeholder="Extrae los fotogramas para generar el código aquí."></textarea>
+  </section>
+
+  <!-- 4. Main.ino -->
+  <section class="card full">
+    <h2>4. Código principal (Main.ino)</h2>
+    <p class="info">Pega este código en tu archivo principal (.ino). La pantalla que elijas aquí queda activada arriba del código; también puedes cambiarla ahí a mano.</p>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+      <label><span class="lbl">Modelo de pantalla</span>
+        <select id="model"><option value="ssd1306">SSD1306 (0.96")</option><option value="sh1106">SH1106 (1.3")</option></select></label>
+      <label><span class="lbl">Dirección I2C</span>
+        <select id="addr"><option>0x3C</option><option>0x3D</option></select></label>
+      <label><span class="lbl">Pin SDA</span><input type="number" id="sda" value="21" min="0" max="48"></label>
+      <label><span class="lbl">Pin SCL</span><input type="number" id="scl" value="22" min="0" max="48"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="loop" checked> Repetir la animación en bucle</label>
+    <div class="row">
+      <button id="copyI">📋 Copiar código Main.ino</button>
+      <button id="dlI" class="sec">⬇ Descargar Main.ino</button>
+    </div>
+    <textarea id="codeI" readonly></textarea>
+    <p class="info">Librerías (Gestor de librerías del IDE de Arduino): <b>Adafruit GFX</b> + <b>Adafruit SSD1306</b> o <b>Adafruit SH110X</b>.
+      Si son muchos fotogramas: <i>Tools → Partition Scheme → Huge APP (3MB No OTA)</i>.
+      Conexión: <code>VCC→3V3</code>, <code>GND→GND</code>, <code>SDA→GPIO21</code>, <code>SCL→GPIO22</code>.</p>
+  </section>
+
+  <!-- 5. Simulador propio ESP32 + OLED -->
+  <section class="card full">
+    <h2>5. Simulador ESP32 + pantalla OLED</h2>
+    <p class="info">Así se verá tu animación en la pantalla real. Usa los fotogramas que extrajiste, o carga cualquier archivo <b>VideoFrame.h</b> (por ejemplo el de un ZIP descargado de Wokwi).</p>
+    <canvas id="sim" width="640" height="320" style="width:100%;max-width:760px;display:block;margin:12px auto;border-radius:10px;background:#d9dde3"></canvas>
+    <div class="row">
+      <button id="simPlay">▶ Play</button>
+      <button id="simStop" class="sec">⏹ Stop</button>
+      <label class="drop" style="flex:1;margin:0;padding:9px">
+        <input type="file" id="simFile" accept=".h,.txt">📂 Cargar VideoFrame.h
+      </label>
+    </div>
+    <div class="info" id="simInfo">Extrae un video o carga un VideoFrame.h y presiona ▶ Play.</div>
+  </section>
+
+  <!-- 6. Simulador Wokwi -->
+  <section class="card full">
+    <h2>6. Simulador en vivo (Wokwi)</h2>
+    <p class="info">Prueba tu animación sin tener el ESP32. Pasos en el editor de abajo (o en una pestaña nueva):</p>
+    <ol>
+      <li>En la pestaña <code>diagram.json</code> pega el diagrama (ESP32 + OLED ya conectados).</li>
+      <li>Con el botón ▾ junto a las pestañas crea los archivos <code>VideoFrame.h</code> y <code>libraries.txt</code> y pega su contenido.</li>
+      <li>En <code>sketch.ino</code> pega el código de Main.ino y presiona ▶ Play.</li>
+    </ol>
+    <p class="info">Wokwi solo simula la SSD1306; para probar, deja elegida SSD1306. Con menos fotogramas (por ejemplo 50) la simulación va más fluida.</p>
+    <div class="box">
+      <div class="box-title">Mostrar tu proyecto Wokwi aquí</div>
+      <p class="info" style="margin-top:0">Cuando tu proyecto funcione, inicia sesión en Wokwi y presiona <b>Save</b>. Copia el enlace (por ejemplo <code>https://wokwi.com/projects/123456…</code>), pégalo abajo y se mostrará en esta página con tu video listo para darle ▶ Play.</p>
+      <div class="row" style="margin-top:6px">
+        <input type="url" id="wokwiUrl" placeholder="https://wokwi.com/projects/..." style="flex:3;background:#0f1318;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit">
+        <button id="loadWokwi">Cargar</button>
+        <button id="resetWokwi" class="sec" title="Volver a un proyecto vacío">↺</button>
+      </div>
+    </div>
+    <div class="grid">
+      <div>
+        <div class="row" style="margin-top:0"><button id="copyD" class="sec">📋 Copiar diagram.json</button></div>
+        <textarea id="codeD" class="small" readonly></textarea>
+      </div>
+      <div>
+        <div class="row" style="margin-top:0"><button id="copyL" class="sec">📋 Copiar libraries.txt</button></div>
+        <textarea id="codeL" class="small" readonly>Adafruit GFX Library
+Adafruit SSD1306
+Adafruit SH110X</textarea>
+      </div>
+    </div>
+    <div class="row"><button id="openWokwi" class="sec">↗ Abrir Wokwi en pestaña nueva</button></div>
+    <iframe class="wokwi" id="wokwiFrame" src="https://wokwi.com/projects/476840993194390529" title="Simulador Wokwi" loading="lazy"></iframe>
+  </section>
+</main>
+
+<footer>Hecho con HTML, CSS y JavaScript · Inspirado en <i>ESP32 OLED Video Converter</i> de Tri Wahyu</footer>
+
+<script>
+const W = 128, H = 64, FRAME_BYTES = W * H / 8;
+const $ = id => document.getElementById(id);
+const video = $('video');
+const work = document.createElement('canvas');
+work.width = W; work.height = H;
+const wctx = work.getContext('2d', { willReadFrequently: true });
+const pctx = $('preview').getContext('2d');
+const octx = $('outPreview').getContext('2d');
+
+let frames = [];          // cada fotograma: Uint8Array de 1024 bytes empaquetados
+let headerCode = '', inoCode = '';
+let rotation = 0;
+let playTimer = null, playIndex = 0, cancelled = false, converting = false;
+
+// ---------- Matriz Bayer 8x8 ----------
+const BAYER = (() => {
+  let m = [[0]];
+  while (m.length < 8) {
+    const s = m.length, r = [];
+    for (let y = 0; y < s * 2; y++) {
+      r.push([]);
+      for (let x = 0; x < s * 2; x++) {
+        r[y].push(m[y % s][x % s] * 4 + [0, 2, 3, 1][(y >= s) * 2 + (x >= s)]);
+      }
+    }
+    m = r;
+  }
+  return m.flat();
+})();
+
+function settings() {
+  return {
+    method: $('method').value, scale: $('scale').value,
+    panX: +$('panX').value, panY: +$('panY').value, zoom: +$('zoom').value / 100,
+    thick: +$('thick').value, thr: +$('thr').value, bright: +$('bright').value * 1.28,
+    contrast: +$('contrast').value / 100, invert: $('invert').checked
+  };
+}
+
+// ---------- Procesamiento de imagen ----------
+function drawToWork(s) {
+  const sw = video.videoWidth, sh = video.videoHeight;
+  const turned = rotation % 180 !== 0;
+  const rw = turned ? sh : sw, rh = turned ? sw : sh;   // tamaño ya girado
+  let sx, sy;
+  if (s.scale === 'stretch') { sx = W / rw; sy = H / rh; }
+  else { sx = sy = s.scale === 'fit' ? Math.min(W / rw, H / rh) : Math.max(W / rw, H / rh); }
+
+  wctx.fillStyle = '#000';
+  wctx.fillRect(0, 0, W, H);
+  wctx.save();
+  wctx.translate(W / 2 + s.panX, H / 2 + s.panY);
+  wctx.scale(sx * s.zoom, sy * s.zoom);
+  wctx.rotate(rotation * Math.PI / 180);
+  wctx.drawImage(video, -sw / 2, -sh / 2, sw, sh);
+  wctx.restore();
+}
+
+function toGray(s) {
+  const d = wctx.getImageData(0, 0, W, H).data;
+  const g = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    let v = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+    v = (v - 128) * s.contrast + 128 + s.bright;
+    g[i] = v < 0 ? 0 : v > 255 ? 255 : v;
+  }
+  return g;
+}
+
+// Engrosa blanco (amt > 0) o negro (amt < 0) con filtros máx/mín 3x3; los decimales mezclan parcialmente
+function thicken(g, amt) {
+  const white = amt > 0;
+  let left = Math.abs(amt), cur = g;
+  while (left > 0.001) {
+    const f = Math.min(1, left), next = new Float32Array(W * H);
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        let m = cur[y * W + x];
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+            const v = cur[ny * W + nx];
+            if (white ? v > m : v < m) m = v;
+          }
+        next[y * W + x] = cur[y * W + x] + f * (m - cur[y * W + x]);
+      }
+    cur = next;
+    left -= 1;
+  }
+  return cur;
+}
+
+function dither(g, s) {
+  const b = new Uint8Array(W * H);
+  const t = s.thr;
+  if (s.method === 'threshold') {
+    for (let i = 0; i < W * H; i++) b[i] = g[i] >= t ? 1 : 0;
+  } else if (s.method === 'bayer') {
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        const i = y * W + x;
+        b[i] = g[i] >= (BAYER[(y & 7) * 8 + (x & 7)] + 0.5) * 4 + (t - 128) ? 1 : 0;
+      }
+  } else {
+    const e = Float32Array.from(g);
+    const add = (x, y, v) => { if (x >= 0 && x < W && y < H) e[y * W + x] += v; };
+    const atk = s.method === 'atkinson';
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        const i = y * W + x, old = e[i], nw = old >= t ? 255 : 0;
+        b[i] = nw ? 1 : 0;
+        const err = old - nw;
+        if (atk) {
+          const q = err / 8;
+          add(x + 1, y, q); add(x + 2, y, q); add(x - 1, y + 1, q);
+          add(x, y + 1, q); add(x + 1, y + 1, q); add(x, y + 2, q);
+        } else {
+          add(x + 1, y, err * 7 / 16); add(x - 1, y + 1, err * 3 / 16);
+          add(x, y + 1, err * 5 / 16); add(x + 1, y + 1, err / 16);
+        }
+      }
+  }
+  if (s.invert) for (let i = 0; i < W * H; i++) b[i] ^= 1;
+  return b;
+}
+
+// Formato horizontal MSB-primero (el que usa drawBitmap de Adafruit GFX)
+function pack(bits) {
+  const out = new Uint8Array(FRAME_BYTES);
+  for (let y = 0; y < H; y++)
+    for (let xb = 0; xb < W / 8; xb++) {
+      let byte = 0;
+      for (let k = 0; k < 8; k++) if (bits[y * W + xb * 8 + k]) byte |= 0x80 >> k;
+      out[y * (W / 8) + xb] = byte;
+    }
+  return out;
+}
+
+function renderPacked(bytes, ctx) {
+  const img = ctx.createImageData(W, H), d = img.data;
+  for (let i = 0; i < W * H; i++) {
+    const on = bytes[i >> 3] & (0x80 >> (i & 7));
+    d[i * 4] = on ? 220 : 0; d[i * 4 + 1] = on ? 240 : 0; d[i * 4 + 2] = on ? 255 : 0; d[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function processCurrent() {
+  const s = settings();
+  drawToWork(s);
+  let g = toGray(s);
+  if (s.thick) g = thicken(g, s.thick);
+  return pack(dither(g, s));
+}
+
+function livePreview() {
+  if (!video.videoWidth || converting) return;
+  renderPacked(processCurrent(), pctx);
+}
+
+function setStatus(text, ok) {
+  $('statusMsg').textContent = text;
+  $('statusMsg').className = ok ? 'msg ok' : 'msg';
+}
+
+// ---------- Carga del video ----------
+function loadFile(f) {
+  if (!f || !f.type.startsWith('video/')) { setStatus('Ese archivo no es un video.'); return; }
+  $('fileName').textContent = f.name;
+  video.src = URL.createObjectURL(f);
+  video.style.display = 'block';
+}
+$('file').addEventListener('change', e => loadFile(e.target.files[0]));
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+
+video.addEventListener('loadedmetadata', () => {
+  setStatus(`Video cargado (${video.videoWidth}×${video.videoHeight}, ${video.duration.toFixed(1)} s). Ajusta y haz clic en Extraer.`);
+  $('end').placeholder = video.duration.toFixed(1);
+  $('convert').disabled = false;
+  $('rotate').disabled = false;
+});
+video.addEventListener('loadeddata', livePreview);
+video.addEventListener('seeked', livePreview);
+video.addEventListener('play', function tick() {
+  if (video.paused || video.ended) return;
+  livePreview();
+  requestAnimationFrame(tick);
+});
+
+$('rotate').addEventListener('click', () => {
+  rotation = (rotation + 90) % 360;
+  $('rotate').textContent = `↻ Girar video ${rotation}°`;
+  livePreview();
+});
+
+// Sliders: mostrar valor y actualizar vista previa
+const ranges = ['panX', 'panY', 'zoom', 'fps', 'thick', 'thr', 'contrast', 'bright'];
+function updateLabels() { ranges.forEach(id => { $(id + 'V').textContent = $(id).value; }); }
+[...ranges, 'method', 'scale', 'invert'].forEach(id => $(id).addEventListener('input', () => { updateLabels(); livePreview(); }));
+document.querySelectorAll('.reset').forEach(btn => btn.addEventListener('click', e => {
+  e.preventDefault();
+  const el = $(btn.dataset.for);
+  el.value = el.defaultValue;
+  el.dispatchEvent(new Event('input'));
+}));
+
+// ---------- Conversión ----------
+function seek(t) {
+  return new Promise(resolve => {
+    const done = () => { clearTimeout(timer); video.removeEventListener('seeked', done); resolve(); };
+    const timer = setTimeout(done, 2000);
+    video.addEventListener('seeked', done);
+    video.currentTime = t;
+  });
+}
+
+$('convert').addEventListener('click', async () => {
+  video.pause();
+  stopPlayback();
+  const fps = +$('fps').value;
+  const start = Math.max(0, +$('start').value || 0);
+  const end = Math.min(+$('end').value || video.duration, video.duration);
+  const total = Math.min(+$('maxFrames').value || 300, Math.max(1, Math.floor((end - start) * fps)));
+
+  converting = true; cancelled = false; frames = []; playIndex = 0;
+  $('convert').disabled = true; $('cancel').disabled = false;
+  $('progress').max = total;
+
+  for (let i = 0; i < total && !cancelled; i++) {
+    await seek(Math.min(start + i / fps, video.duration - 0.001));
+    const f = processCurrent();
+    frames.push(f);
+    renderPacked(f, pctx);
+    $('progress').value = i + 1;
+    $('frameCount').textContent = frames.length;
+    setStatus(`Extrayendo fotograma ${i + 1} de ${total}…`);
+  }
+
+  converting = false;
+  $('convert').disabled = false; $('cancel').disabled = true;
+  if (!frames.length) { setStatus('Extracción cancelada.'); return; }
+  setStatus(`¡Listo! ${frames.length} fotogramas a ${fps} FPS${cancelled ? ' (cancelado antes de terminar)' : ''}. Copia el código de abajo.`, true);
+  buildHeader(fps);
+  startPlayback(fps);
+  simFrames = null;   // el simulador pasa a usar el video recién extraído
+  simIndex = 0;
+});
+$('cancel').addEventListener('click', () => { cancelled = true; });
+
+// ---------- Generación de código ----------
+const hex = b => '0x' + b.toString(16).padStart(2, '0');
+
+function buildHeader(fps) {
+  const parts = [
+    '// Generado por ESP32 OLED - Conversor de Video a Animación',
+    `// ${frames.length} fotogramas, ${W}x${H}, ${fps} FPS`,
+    '#pragma once',
+    '#include <Arduino.h>',
+    '',
+    `#define FRAME_WIDTH ${W}`,
+    `#define FRAME_HEIGHT ${H}`,
+    `#define FRAME_COUNT ${frames.length}`,
+    `#define FRAME_DELAY_MS ${Math.round(1000 / fps)}`,
+    '',
+    `const unsigned char frames[FRAME_COUNT][${FRAME_BYTES}] PROGMEM = {`
+  ];
+  frames.forEach((f, n) => {
+    parts.push(`  { // fotograma ${n}`);
+    for (let i = 0; i < FRAME_BYTES; i += 16) {
+      parts.push('    ' + Array.from(f.subarray(i, i + 16), hex).join(', ') + (i + 16 < FRAME_BYTES ? ',' : ''));
+    }
+    parts.push('  }' + (n < frames.length - 1 ? ',' : ''));
+  });
+  parts.push('};', '');
+  headerCode = parts.join('\n');
+
+  // Un header grande puede trabar el navegador: se muestra solo el inicio
+  const LIMIT = 20000;
+  $('codeH').value = headerCode.length > LIMIT
+    ? headerCode.slice(0, LIMIT) + '\n\n// ... (vista recortada: usa Copiar o Descargar para obtenerlo completo)'
+    : headerCode;
+
+  const bytes = frames.length * FRAME_BYTES;
+  const mem = $('memInfo');
+  mem.className = bytes > 1000000 ? 'info warn' : 'info';
+  mem.textContent = `Tamaño de los datos: ${(bytes / 1024).toFixed(0)} KB.` +
+    (bytes > 1000000 ? ' Supera la partición normal del ESP32 (~1.2 MB): usa "Huge APP (3MB)" o baja los FPS o los fotogramas.' : ' Cabe en la partición normal del ESP32.');
+  $('copyH').disabled = $('dlH').disabled = false;
+}
+
+function buildIno() {
+  const sh = $('model').value === 'sh1106';
+  const loop = $('loop').checked;
+  inoCode = `// Generado por ESP32 OLED - Conversor de Video a Animación
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include "VideoFrame.h"
+
+// ==================================================
+// ⚙ ELIGE TU TIPO DE OLED AQUÍ (activa solo uno)
+// ==================================================
+${sh ? '//' : ''}#define USAR_SSD1306
+${sh ? '' : '//'}#define USAR_SH1106
+// ==================================================
+
+#define OLED_ADDR ${$('addr').value}
+#define SDA_PIN   ${+$('sda').value}
+#define SCL_PIN   ${+$('scl').value}
+
+// Configuración automática según la pantalla elegida arriba
+#ifdef USAR_SSD1306
+  #include <Adafruit_SSD1306.h>
+  Adafruit_SSD1306 display(FRAME_WIDTH, FRAME_HEIGHT, &Wire, -1);
+  #define OLED_WHITE SSD1306_WHITE
+#else
+  #include <Adafruit_SH110X.h>
+  Adafruit_SH1106G display(FRAME_WIDTH, FRAME_HEIGHT, &Wire, -1);
+  #define OLED_WHITE SH110X_WHITE
+#endif
+
+bool iniciarPantalla() {
+#ifdef USAR_SSD1306
+  return display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+#else
+  return display.begin(OLED_ADDR, true);
+#endif
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(400000);  // I2C rápido para más FPS
+
+  if (!iniciarPantalla()) {
+    Serial.println(F("No se encontro la pantalla OLED"));
+    for (;;) delay(1000);
+  }
+  display.clearDisplay();
+  display.display();
+}
+
+void reproducirAnimacion() {
+  for (uint16_t i = 0; i < FRAME_COUNT; i++) {
+    unsigned long t = millis();
+    display.clearDisplay();
+    display.drawBitmap(0, 0, frames[i], FRAME_WIDTH, FRAME_HEIGHT, OLED_WHITE);
+    display.display();
+    long espera = FRAME_DELAY_MS - (long)(millis() - t);
+    if (espera > 0) delay(espera);
+  }
+}
+
+void loop() {
+${loop ? '  reproducirAnimacion();' : '  static bool reproducido = false;\n  if (!reproducido) {\n    reproducirAnimacion();\n    reproducido = true;\n  }'}
+}
+`;
+  $('codeI').value = inoCode;
+}
+
+function buildDiagram() {
+  const sda = +$('sda').value, scl = +$('scl').value;
+  $('codeD').value = JSON.stringify({
+    version: 1, author: 'ESP32 OLED Video', editor: 'wokwi',
+    parts: [
+      { type: 'wokwi-esp32-devkit-v1', id: 'esp', top: 18.92, left: 43.17, attrs: {} },
+      { type: 'board-ssd1306', id: 'oled1', top: 99.14, left: 182.63, attrs: { i2cAddress: $('addr').value.toLowerCase() } }
+    ],
+    connections: [
+      ['esp:TX0', '$serialMonitor:RX', '', []],
+      ['esp:RX0', '$serialMonitor:TX', '', []],
+      ['oled1:GND', 'esp:GND.1', 'black', []],
+      ['oled1:VCC', 'esp:3V3', 'red', []],
+      ['oled1:SDA', `esp:D${sda}`, 'yellow', []],
+      ['oled1:SCL', `esp:D${scl}`, 'green', []]
+    ],
+    dependencies: {}
+  }, null, 2);
+}
+
+['model', 'addr', 'sda', 'scl', 'loop'].forEach(id => $(id).addEventListener('input', () => { buildIno(); buildDiagram(); }));
+buildIno();
+buildDiagram();
+
+// ---------- Copiar / descargar ----------
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copy(btn, text) {
+  const old = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '✔ ¡Copiado!';
+  } catch {
+    btn.textContent = '✖ No se pudo copiar';
+  }
+  setTimeout(() => btn.textContent = old, 1500);
+}
+$('copyH').addEventListener('click', e => copy(e.target, headerCode));
+$('copyI').addEventListener('click', e => copy(e.target, inoCode));
+$('copyD').addEventListener('click', e => copy(e.target, $('codeD').value));
+$('copyL').addEventListener('click', e => copy(e.target, $('codeL').value));
+$('dlH').addEventListener('click', () => download('VideoFrame.h', headerCode));
+$('dlI').addEventListener('click', () => download('Main.ino', inoCode));
+// ---------- Simulador propio ESP32 + OLED ----------
+const sim = $('sim'), sctx = sim.getContext('2d');
+const SCR = { x: 392, y: 128, px: 1.5 };          // posición y tamaño de píxel de la pantalla
+let simFrames = null, simDelay = 83, simIndex = 0, simTimer = null, simSource = '';
+
+function roundRect(x, y, w, h, r, fill) {
+  sctx.beginPath(); sctx.roundRect(x, y, w, h, r); sctx.fillStyle = fill; sctx.fill();
+}
+function drawBoard(on) {
+  sctx.clearRect(0, 0, sim.width, sim.height);
+  // Placa ESP32
+  roundRect(60, 30, 170, 260, 10, '#202326');
+  roundRect(85, 45, 120, 100, 4, '#b8bec6');
+  sctx.fillStyle = '#5a6068'; sctx.font = 'bold 22px system-ui'; sctx.textAlign = 'center';
+  sctx.fillText('ESP32', 145, 103);
+  roundRect(120, 270, 50, 26, 3, '#9aa1a9');                     // USB
+  sctx.fillStyle = on ? '#ff3b3b' : '#552222';                     // LED de encendido
+  sctx.beginPath(); sctx.arc(100, 250, 5, 0, Math.PI * 2); sctx.fill();
+  for (let i = 0; i < 15; i++) {                                   // pines
+    sctx.fillStyle = '#d4af37';
+    sctx.fillRect(66, 60 + i * 14, 8, 8);
+    sctx.fillRect(216, 60 + i * 14, 8, 8);
+  }
+  // Etiquetas de los pines usados (lado derecho)
+  const pins = [['3V3', 60], ['GND', 74], ['D21', 102], ['D22', 116]];
+  sctx.font = '10px system-ui'; sctx.textAlign = 'right'; sctx.fillStyle = '#cfd3d8';
+  pins.forEach(([t, y]) => sctx.fillText(t, 212, y + 8));
+
+  // Módulo OLED
+  roundRect(370, 70, 250, 190, 10, '#1d4f9c');
+  const oledPins = [['GND', 440, '#111'], ['VCC', 475, '#e53935'], ['SCL', 510, '#2e9e44'], ['SDA', 545, '#e6c229']];
+  sctx.textAlign = 'center';
+  oledPins.forEach(([t, x]) => {
+    sctx.fillStyle = '#d4af37'; sctx.beginPath(); sctx.arc(x, 85, 5, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = '#fff'; sctx.fillText(t, x, 104);
+  });
+  roundRect(SCR.x - 10, SCR.y - 10, 128 * SCR.px + 20, 64 * SCR.px + 20, 4, '#000');
+
+  // Cables
+  const from = [[224, 78, 440], [224, 64, 475], [224, 120, 510], [224, 106, 545]]; // GND, 3V3, D22, D21
+  sctx.lineWidth = 4; sctx.lineCap = 'round';
+  from.forEach(([x, y, tx], i) => {
+    sctx.strokeStyle = oledPins[i][2];
+    sctx.beginPath(); sctx.moveTo(x, y);
+    sctx.bezierCurveTo(300 + i * 12, y, tx, 20, tx, 80);
+    sctx.stroke();
+  });
+}
+function drawSimFrame(bytes) {
+  drawBoard(true);
+  sctx.fillStyle = '#cfe8ff';
+  for (let i = 0; i < W * H; i++) {
+    if (bytes[i >> 3] & (0x80 >> (i & 7))) {
+      sctx.fillRect(SCR.x + (i % W) * SCR.px, SCR.y + Math.floor(i / W) * SCR.px, SCR.px, SCR.px);
+    }
+  }
+}
+function simStop() {
+  clearInterval(simTimer); simTimer = null;
+  $('simPlay').textContent = '▶ Play';
+}
+$('simPlay').addEventListener('click', () => {
+  if (simTimer) { simStop(); return; }                         // pausa
+  const list = simFrames || frames;
+  if (!list.length) { $('simInfo').textContent = 'Primero extrae un video o carga un VideoFrame.h.'; return; }
+  const delay = simFrames ? simDelay : Math.round(1000 / +$('fps').value);
+  $('simPlay').textContent = '⏸ Pausa';
+  simTimer = setInterval(() => {
+    simIndex %= list.length;
+    drawSimFrame(list[simIndex]);
+    $('simInfo').textContent = `${simFrames ? simSource : 'Tu video'} · fotograma ${simIndex + 1} / ${list.length} · ${delay} ms por fotograma`;
+    simIndex++;
+  }, delay);
+});
+$('simStop').addEventListener('click', () => { simStop(); simIndex = 0; drawBoard(false); });
+
+// Lee un VideoFrame.h (formato de esta web o el de la web original)
+$('simFile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const text = await f.text();
+  const body = text.slice(text.indexOf('PROGMEM') + 1 || 0);
+  const nums = body.match(/0x[0-9a-fA-F]{1,2}/g) || [];
+  const count = Math.floor(nums.length / FRAME_BYTES);
+  if (!count) { $('simInfo').textContent = 'No encontré fotogramas de 128×64 en ese archivo.'; return; }
+  simFrames = [];
+  for (let n = 0; n < count; n++) {
+    const fr = new Uint8Array(FRAME_BYTES);
+    for (let i = 0; i < FRAME_BYTES; i++) fr[i] = parseInt(nums[n * FRAME_BYTES + i], 16);
+    simFrames.push(fr);
+  }
+  const d = text.match(/FRAME_DELAY(?:_MS)?\s*=?\s*(\d+)/);
+  simDelay = d ? +d[1] : 83;
+  simSource = f.name;
+  simStop(); simIndex = 0;
+  drawSimFrame(simFrames[0]);
+  $('simInfo').textContent = `${f.name}: ${count} fotogramas cargados, ${simDelay} ms por fotograma. Presiona ▶ Play.`;
+});
+drawBoard(false);
+
+// ---------- Proyecto Wokwi propio (se recuerda en este navegador) ----------
+const WOKWI_NEW = 'https://wokwi.com/projects/476840993194390529';
+function setWokwi(url) {
+  $('wokwiFrame').src = url;
+  $('wokwiUrl').value = url === WOKWI_NEW ? '' : url;
+}
+$('loadWokwi').addEventListener('click', () => {
+  const url = $('wokwiUrl').value.trim();
+  if (!/^https:\/\/wokwi\.com\/projects\/\d+/.test(url)) {
+    $('wokwiUrl').value = '';
+    $('wokwiUrl').placeholder = 'Enlace no válido. Ejemplo: https://wokwi.com/projects/460502579013039105';
+    return;
+  }
+  setWokwi(url);
+  try { localStorage.setItem('wokwiUrl', url); } catch {}
+});
+$('resetWokwi').addEventListener('click', () => {
+  setWokwi(WOKWI_NEW);
+  try { localStorage.removeItem('wokwiUrl'); } catch {}
+});
+try { const saved = localStorage.getItem('wokwiUrl'); if (saved) setWokwi(saved); } catch {}
+$('openWokwi').addEventListener('click', () => window.open($('wokwiFrame').src, '_blank'));
+
+// ---------- Reproducción del resultado ----------
+function startPlayback(fps) {
+  stopPlayback();
+  $('play').disabled = false;
+  $('play').textContent = '⏸ Pausar';
+  playTimer = setInterval(() => {
+    renderPacked(frames[playIndex], octx);
+    $('frameInfo').textContent = `Fotograma ${playIndex + 1} / ${frames.length}`;
+    playIndex = (playIndex + 1) % frames.length;
+  }, 1000 / fps);
+}
+function stopPlayback() { clearInterval(playTimer); playTimer = null; }
+$('play').addEventListener('click', () => {
+  if (playTimer) { stopPlayback(); $('play').textContent = '▶ Reproducir'; }
+  else startPlayback(+$('fps').value);
+});
+</script>
+</body>
+</html>
